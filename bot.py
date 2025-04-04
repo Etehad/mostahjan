@@ -4,6 +4,7 @@ import logging
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 import yt_dlp
+from flask import Flask, request
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -15,6 +16,9 @@ logging.basicConfig(
 TOKEN = "7274292176:AAEoX0csJq2neu1Hl0aeuYFXDW_kork2b5w"
 # آیدی گروه
 GROUP_ID = -1002260229635
+
+# ایجاد برنامه Flask
+app = Flask(__name__)
 
 # لیست دامنه‌های مجاز
 ALLOWED_DOMAINS = [
@@ -83,8 +87,20 @@ def main():
     # اضافه کردن هندلر پیام
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # شروع ربات
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # تنظیم webhook
+    port = int(os.environ.get('PORT', 8080))
+    webhook_url = os.environ.get('https://mostahjan.onrender.com')
+    
+    if webhook_url:
+        application.run_webhook(
+            listen='0.0.0.0',
+            port=port,
+            url_path=TOKEN,
+            webhook_url=f"{webhook_url}/{TOKEN}"
+        )
+    else:
+        # اگر webhook_url تنظیم نشده باشد، از polling استفاده می‌کند
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main() 
