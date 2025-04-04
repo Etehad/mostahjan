@@ -6,6 +6,7 @@ from telegram.ext import Application, MessageHandler, filters, ContextTypes
 import yt_dlp
 from flask import Flask, request
 import gc
+import tempfile
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -49,11 +50,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed:
         return
 
+    # ایجاد یک فایل موقت با پسوند mp4
+    temp_file = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False)
+    temp_path = temp_file.name
+    temp_file.close()
+
     try:
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
             'format': 'worst',  # کمترین کیفیت
-            'outtmpl': 'video.%(ext)s',
+            'outtmpl': temp_path,
             'quiet': True,
             'no_warnings': True,
             'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
@@ -67,11 +73,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # دانلود ویدیو
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(message_text, download=True)
-            video_path = f"video.{info['ext']}"
+            ydl.download([message_text])
 
         # ارسال ویدیو به گروه
-        with open(video_path, 'rb') as video:
+        with open(temp_path, 'rb') as video:
             await context.bot.send_video(
                 chat_id=GROUP_ID,
                 video=video,
@@ -79,20 +84,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supports_streaming=True
             )
 
-        # پاک کردن فایل موقت
-        if os.path.exists(video_path):
-            os.remove(video_path)
-        
-        # پاکسازی حافظه
-        gc.collect()
-
     except Exception as e:
         logging.error(f"خطا در پردازش ویدیو: {str(e)}")
         await context.bot.send_message(
             chat_id=GROUP_ID,
             text=f"خطا در دانلود ویدیو: {str(e)}"
         )
-        # پاکسازی حافظه در صورت خطا
+    finally:
+        # پاک کردن فایل موقت
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        
+        # پاکسازی حافظه
         gc.collect()
 
 def main():
@@ -104,7 +107,7 @@ def main():
 
     # تنظیم webhook
     port = int(os.environ.get('PORT', 8080))
-    webhook_url = os.environ.get('WEBHOOK_URL')
+    webhook_url = os.environ.get('https://mostahjan.onrender.com')
     
     if webhook_url:
         application.run_webhook(
