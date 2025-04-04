@@ -75,24 +75,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(180)  # 3 دقیقه
 
-        # تنظیمات yt-dlp برای کمترین کیفیت
+        # تنظیمات yt-dlp برای دانلود با هر فرمتی
         ydl_opts = {
-            'format': '240p',  # استفاده از کیفیت 240p
+            'format': 'best[height<=240]',  # بهترین کیفیت با ارتفاع حداکثر 240 پیکسل
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
             'verbose': True,  # نمایش جزئیات بیشتر
             'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
+            'merge_output_format': 'mp4',  # تبدیل نهایی به mp4
+            'retries': 3,  # تعداد تلاش‌های مجدد
+            'socket_timeout': 30,  # زمان انتظار برای اتصال
+            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
+            'format_sort': ['res:240', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها
+            'format_sort_force': True,
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'format_sort': ['height:240'],  # اولویت با رزولوشن 240p
-            'format_sort_force': True,
-            'merge_output_format': 'mp4',
-            'retries': 3,  # تعداد تلاش‌های مجدد
-            'socket_timeout': 30,  # زمان انتظار برای اتصال
-            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
         }
 
         # دانلود ویدیو
