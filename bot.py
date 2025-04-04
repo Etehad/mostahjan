@@ -121,7 +121,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'format': '240p',  # انتخاب کیفیت 240p
+            'format': '144p',  # انتخاب کیفیت 144p
             'prefer_free_formats': True,  # ترجیح فرمت‌های رایگان
             'format_sort': ['res:144', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها با رزولوشن پایین‌تر
             'format_sort_force': True,
@@ -129,6 +129,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
+            'ffmpeg_location': '/usr/bin/ffmpeg',  # مسیر ffmpeg
+            'postprocessor_args': [
+                '-vf', 'scale=256:144',  # کاهش رزولوشن به 256x144
+                '-b:v', '500k',  # کاهش بیت‌ریت ویدیو به 500kbps
+                '-b:a', '64k',  # کاهش بیت‌ریت صدا به 64kbps
+                '-r', '15',  # کاهش فریم‌ریت به 15fps
+                '-movflags', '+faststart'  # بهینه‌سازی برای پخش آنلاین
+            ],
         }
 
         # دانلود ویدیو
