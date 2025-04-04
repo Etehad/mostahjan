@@ -8,6 +8,8 @@ from flask import Flask, request
 import gc
 import tempfile
 import shutil
+import time
+import signal
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -31,6 +33,13 @@ ALLOWED_DOMAINS = [
     'xhamster.com'
 ]
 
+# کلاس برای مدیریت تایمر دانلود
+class DownloadTimeout(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise DownloadTimeout("زمان دانلود به پایان رسید")
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی اینکه پیام در گروه مورد نظر است
     if update.message.chat_id != GROUP_ID:
@@ -51,11 +60,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed:
         return
 
+    # ارسال پیام "در حال پردازش"
+    processing_message = await context.bot.send_message(
+        chat_id=GROUP_ID,
+        text="ویدیو در حال پردازش... لطفاً صبر کنید."
+    )
+
     # ایجاد یک دایرکتوری موقت
     temp_dir = tempfile.mkdtemp()
     temp_path = os.path.join(temp_dir, 'video.mp4')
 
     try:
+        # تنظیم تایمر برای دانلود (3 دقیقه)
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(180)  # 3 دقیقه
+
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
             'format': '240p',  # استفاده از کیفیت 240p
@@ -73,6 +92,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'merge_output_format': 'mp4',
             'retries': 3,  # تعداد تلاش‌های مجدد
             'socket_timeout': 30,  # زمان انتظار برای اتصال
+            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
         }
 
         # دانلود ویدیو
@@ -96,11 +116,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     if file_size == 0:
                         raise Exception("فایل دانلود شده خالی است")
                     elif file_size > 50 * 1024 * 1024:
-                        raise Exception("سایز فایل بیشتر از حد مجاز است")
+                        raise Exception(f"سایز فایل ({file_size/1024/1024:.2f}MB) بیشتر از حد مجاز (50MB) است")
 
             except Exception as e:
                 logging.error(f"خطا در دانلود: {str(e)}")
                 raise e
+
+        # غیرفعال کردن تایمر
+        signal.alarm(0)
 
         # ارسال ویدیو به گروه
         with open(temp_path, 'rb') as video:
@@ -111,6 +134,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 supports_streaming=True
             )
 
+    except DownloadTimeout:
+        logging.error("زمان دانلود به پایان رسید")
+        await context.bot.send_message(
+            chat_id=GROUP_ID,
+            text="زمان دانلود به پایان رسید. لطفاً دوباره تلاش کنید."
+        )
     except Exception as e:
         logging.error(f"خطا در پردازش ویدیو: {str(e)}")
         await context.bot.send_message(
@@ -118,6 +147,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f"خطا در دانلود ویدیو: {str(e)}"
         )
     finally:
+        # غیرفعال کردن تایمر در هر صورت
+        signal.alarm(0)
+        
+        # پاک کردن پیام "در حال پردازش"
+        try:
+            await context.bot.delete_message(
+                chat_id=GROUP_ID,
+                message_id=processing_message.message_id
+            )
+        except Exception as e:
+            logging.error(f"خطا در حذف پیام پردازش: {str(e)}")
+        
         # پاک کردن دایرکتوری موقت و محتویات آن
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
