@@ -5,6 +5,7 @@ from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, ContextTypes
 import yt_dlp
 from flask import Flask, request
+import gc
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -49,12 +50,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     try:
-        # تنظیمات yt-dlp
+        # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'best',
+            'format': 'worst[ext=mp4]',  # کمترین کیفیت با فرمت mp4
             'outtmpl': 'video.%(ext)s',
             'quiet': True,
             'no_warnings': True,
+            'max_filesize': '50M',  # محدودیت سایز فایل
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',  # تبدیل به mp4 برای حجم کمتر
+            }],
         }
 
         # دانلود ویدیو
@@ -67,11 +73,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_video(
                 chat_id=GROUP_ID,
                 video=video,
-                caption=f"ویدیو از {message_text}"
+                caption=f"ویدیو از {message_text}",
+                supports_streaming=True  # پشتیبانی از استریم برای حجم کمتر
             )
 
         # پاک کردن فایل موقت
-        os.remove(video_path)
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        
+        # پاکسازی حافظه
+        gc.collect()
 
     except Exception as e:
         logging.error(f"خطا در پردازش ویدیو: {str(e)}")
@@ -79,6 +90,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=GROUP_ID,
             text=f"خطا در دانلود ویدیو: {str(e)}"
         )
+        # پاکسازی حافظه در صورت خطا
+        gc.collect()
 
 def main():
     # ایجاد برنامه
