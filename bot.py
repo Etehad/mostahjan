@@ -77,7 +77,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # تنظیمات yt-dlp برای دانلود با هر فرمتی
         ydl_opts = {
-            'format': 'best[height<=240]',  # بهترین کیفیت با ارتفاع حداکثر 240 پیکسل
+            'format': 'worst[height<=240]',  # بدترین کیفیت با ارتفاع حداکثر 240 پیکسل
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
@@ -87,7 +87,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'retries': 3,  # تعداد تلاش‌های مجدد
             'socket_timeout': 30,  # زمان انتظار برای اتصال
             'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
-            'format_sort': ['res:240', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها
+            'format_sort': ['res:240', 'ext:mp4:m4a:webm:mkv', 'size', 'tbr'],  # اولویت فرمت‌ها
             'format_sort_force': True,
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
