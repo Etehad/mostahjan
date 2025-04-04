@@ -52,15 +52,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'worst[ext=mp4]',  # کمترین کیفیت با فرمت mp4
+            'format': 'worst',  # کمترین کیفیت
             'outtmpl': 'video.%(ext)s',
             'quiet': True,
             'no_warnings': True,
-            'max_filesize': '50M',  # محدودیت سایز فایل
+            'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
-                'preferedformat': 'mp4',  # تبدیل به mp4 برای حجم کمتر
+                'preferedformat': 'mp4',
             }],
+            'format_sort': ['res:144', 'ext:mp4:m4a', 'size'],
+            'format_sort_force': True,
         }
 
         # دانلود ویدیو
@@ -74,7 +76,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 chat_id=GROUP_ID,
                 video=video,
                 caption=f"ویدیو از {message_text}",
-                supports_streaming=True  # پشتیبانی از استریم برای حجم کمتر
+                supports_streaming=True
             )
 
         # پاک کردن فایل موقت
@@ -102,7 +104,7 @@ def main():
 
     # تنظیم webhook
     port = int(os.environ.get('PORT', 8080))
-    webhook_url = os.environ.get('https://mostahjan.onrender.com')
+    webhook_url = os.environ.get('WEBHOOK_URL')
     
     if webhook_url:
         application.run_webhook(
