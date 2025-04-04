@@ -20,7 +20,7 @@ logging.basicConfig(
 # توکن ربات
 TOKEN = "7274292176:AAEoX0csJq2neu1Hl0aeuYFXDW_kork2b5w"
 # آیدی گروه
-GROUP_ID = -1002260229635
+GROUP_ID = -1002654294511
 
 # ایجاد برنامه Flask
 app = Flask(__name__)
@@ -82,7 +82,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
             'verbose': True,  # نمایش جزئیات بیشتر
-            'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
+            'max_filesize': 300 * 1024 * 1024,  # 50MB به بایت
             'merge_output_format': 'mp4',  # تبدیل نهایی به mp4
             'retries': 3,  # تعداد تلاش‌های مجدد
             'socket_timeout': 30,  # زمان انتظار برای اتصال
