@@ -115,8 +115,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logging.info(f"سایز فایل: {file_size} bytes")
                     if file_size == 0:
                         raise Exception("فایل دانلود شده خالی است")
-                    elif file_size > 50 * 1024 * 1024:
-                        raise Exception(f"سایز فایل ({file_size/1024/1024:.2f}MB) بیشتر از حد مجاز (50MB) است")
+                    elif file_size > 300 * 1024 * 1024:
+                        raise Exception(f"سایز فایل ({file_size/1024/1024:.2f}MB) بیشتر از حد مجاز (300MB) است")
 
             except Exception as e:
                 logging.error(f"خطا در دانلود: {str(e)}")
