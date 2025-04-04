@@ -20,7 +20,7 @@ logging.basicConfig(
 # توکن ربات
 TOKEN = "7274292176:AAEoX0csJq2neu1Hl0aeuYFXDW_kork2b5w"
 # آیدی گروه
-GROUP_ID = -1002654294511
+GROUP_ID = -1002260229635
 
 # ایجاد برنامه Flask
 app = Flask(__name__)
@@ -32,6 +32,13 @@ class DownloadTimeout(Exception):
 def timeout_handler(signum, frame):
     raise DownloadTimeout("زمان دانلود به پایان رسید")
 
+# تابع برای تشخیص لینک در متن
+def contains_url(text):
+    url_pattern = re.compile(
+        r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    )
+    return bool(url_pattern.search(text))
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی اینکه پیام در گروه مورد نظر است
     if update.message.chat_id != GROUP_ID:
@@ -39,7 +46,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # بررسی وجود لینک در پیام
     message_text = update.message.text
-    if not message_text:
+    if not message_text or not contains_url(message_text):
         return
 
     # ایجاد یک دایرکتوری موقت
@@ -73,8 +80,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # دانلود ویدیو
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
-                info = ydl.extract_info(message_text, download=True)
+                # ابتدا اطلاعات ویدیو را بدون دانلود دریافت می‌کنیم
+                info = ydl.extract_info(message_text, download=False)
                 logging.info(f"اطلاعات فایل: {info}")
+                
+                # بررسی مدت زمان ویدیو
+                duration = info.get('duration', 0)
+                if duration < 120:  # کمتر از 2 دقیقه (120 ثانیه)
+                    await context.bot.send_message(
+                        chat_id=GROUP_ID,
+                        text=f"ویدیو کوتاه‌تر از 2 دقیقه است (مدت زمان: {duration} ثانیه). دانلود نمی‌شود."
+                    )
+                    return
+                
+                # دانلود ویدیو
+                info = ydl.extract_info(message_text, download=True)
                 
                 # اگر فایل با پسوند دیگری ذخیره شده، آن را به mp4 تغییر نام می‌دهیم
                 downloaded_file = ydl.prepare_filename(info)
@@ -105,7 +125,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_video(
                 chat_id=GROUP_ID,
                 video=video,
-                caption=f"ویدیو از {message_text}",
+                caption=f"ویدیو از {message_text} (مدت زمان: {duration} ثانیه)",
                 supports_streaming=True
             )
 
