@@ -58,7 +58,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst',  # کمترین کیفیت با اولویت mp4
+            'format': '240p',  # استفاده از کیفیت 240p
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
@@ -68,7 +68,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'format_sort': ['res:144', 'ext:mp4:m4a', 'size'],
+            'format_sort': ['height:240'],  # اولویت با رزولوشن 240p
             'format_sort_force': True,
             'merge_output_format': 'mp4',
             'retries': 3,  # تعداد تلاش‌های مجدد
@@ -88,13 +88,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if downloaded_file != temp_path and os.path.exists(downloaded_file):
                     shutil.move(downloaded_file, temp_path)
                     logging.info(f"فایل به {temp_path} منتقل شد")
+
+                # بررسی سایز فایل
+                if os.path.exists(temp_path):
+                    file_size = os.path.getsize(temp_path)
+                    logging.info(f"سایز فایل: {file_size} bytes")
+                    if file_size == 0:
+                        raise Exception("فایل دانلود شده خالی است")
+                    elif file_size > 50 * 1024 * 1024:
+                        raise Exception("سایز فایل بیشتر از حد مجاز است")
+
             except Exception as e:
                 logging.error(f"خطا در دانلود: {str(e)}")
                 raise e
-
-        # بررسی وجود و سایز فایل
-        if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
-            raise Exception("فایل دانلود شده خالی است یا وجود ندارد")
 
         # ارسال ویدیو به گروه
         with open(temp_path, 'rb') as video:
