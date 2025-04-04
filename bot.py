@@ -25,14 +25,6 @@ GROUP_ID = -1002654294511
 # ایجاد برنامه Flask
 app = Flask(__name__)
 
-# لیست دامنه‌های مجاز
-ALLOWED_DOMAINS = [
-    'pornhub.com',
-    'xvideos.com',
-    'sexbebin.com',
-    'xhamster.com'
-]
-
 # کلاس برای مدیریت تایمر دانلود
 class DownloadTimeout(Exception):
     pass
@@ -50,16 +42,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message_text:
         return
 
-    # بررسی دامنه‌های مجاز
-    is_allowed = False
-    for domain in ALLOWED_DOMAINS:
-        if domain in message_text.lower():
-            is_allowed = True
-            break
-
-    if not is_allowed:
-        return
-
     # ایجاد یک دایرکتوری موقت
     temp_dir = tempfile.mkdtemp()
     temp_path = os.path.join(temp_dir, 'video.mp4')
@@ -71,7 +53,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'best[height<=240]',  # بهترین کیفیت با ارتفاع حداکثر 240p
+            'format': 'worst',  # کمترین کیفیت موجود
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
@@ -81,12 +63,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'format_sort': ['height:240'],  # اولویت با رزولوشن 240p
-            'format_sort_force': True,
             'merge_output_format': 'mp4',
             'retries': 3,  # تعداد تلاش‌های مجدد
             'socket_timeout': 30,  # زمان انتظار برای اتصال
             'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
+            'extract_flat': True,  # استخراج تمام ویدیوهای موجود در صفحه
         }
 
         # دانلود ویدیو
