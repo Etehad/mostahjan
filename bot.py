@@ -93,6 +93,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
+            'format': '240p',  # انتخاب کیفیت 240p
+            'prefer_free_formats': True,  # ترجیح فرمت‌های رایگان
+            'format_sort': ['res:144', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها با رزولوشن پایین‌تر
+            'format_sort_force': True,
+            'postprocessors': [{
+                'key': 'FFmpegVideoConvertor',
+                'preferedformat': 'mp4',
+            }],
         }
 
         # دانلود ویدیو
