@@ -71,12 +71,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': '240p',  # استفاده از کیفیت 240p
+            'format': 'best[height<=240]',  # بهترین کیفیت با ارتفاع حداکثر 240p
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
             'verbose': True,  # نمایش جزئیات بیشتر
-            'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
+            'max_filesize': 100 * 1024 * 1024,  # 100MB به بایت
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
@@ -109,8 +109,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logging.info(f"سایز فایل: {file_size} bytes")
                     if file_size == 0:
                         raise Exception("فایل دانلود شده خالی است")
-                    elif file_size > 50 * 1024 * 1024:
-                        raise Exception(f"سایز فایل ({file_size/1024/1024:.2f}MB) بیشتر از حد مجاز (50MB) است")
+                    elif file_size > 100 * 1024 * 1024:
+                        raise Exception(f"سایز فایل ({file_size/1024/1024:.2f}MB) بیشتر از حد مجاز (100MB) است")
 
             except Exception as e:
                 logging.error(f"خطا در دانلود: {str(e)}")
@@ -174,4 +174,4 @@ def main():
         application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
-    main()
+    main() 
