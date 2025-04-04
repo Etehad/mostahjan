@@ -10,8 +10,6 @@ import tempfile
 import shutil
 import time
 import signal
-import fcntl
-import sys
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -42,32 +40,6 @@ class DownloadTimeout(Exception):
 def timeout_handler(signum, frame):
     raise DownloadTimeout("زمان دانلود به پایان رسید")
 
-class SingleInstance:
-    """
-    کلاس برای اطمینان از اجرای تنها یک نمونه از برنامه
-    """
-    def __init__(self, lockfile):
-        self.lockfile = lockfile
-        self.fd = None
-
-    def __enter__(self):
-        self.fd = open(self.lockfile, 'w')
-        try:
-            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError:
-            logging.error("برنامه در حال اجراست. خروج...")
-            sys.exit(1)
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.fd:
-            fcntl.flock(self.fd, fcntl.LOCK_UN)
-            self.fd.close()
-            try:
-                os.unlink(self.lockfile)
-            except OSError:
-                pass
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی اینکه پیام در گروه مورد نظر است
     if update.message.chat_id != GROUP_ID:
@@ -88,12 +60,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_allowed:
         return
 
-    # ارسال پیام "در حال پردازش"
-    processing_message = await context.bot.send_message(
-        chat_id=GROUP_ID,
-        text="ویدیو در حال پردازش... لطفاً صبر کنید."
-    )
-
     # ایجاد یک دایرکتوری موقت
     temp_dir = tempfile.mkdtemp()
     temp_path = os.path.join(temp_dir, 'video.mp4')
@@ -103,33 +69,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(180)  # 3 دقیقه
 
-        # تنظیمات yt-dlp برای دانلود با هر فرمتی
+        # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'worst[ext=mp4/mkv/webm/m4v/mov/avi/flv/wmv]',  # پایین‌ترین کیفیت در فرمت‌های مختلف
+            'format': '240p',  # استفاده از کیفیت 240p
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
             'verbose': True,  # نمایش جزئیات بیشتر
-            'max_filesize': None,  # حذف محدودیت حجم
-            'merge_output_format': 'mp4',  # تبدیل نهایی به mp4
-            'retries': 3,  # تعداد تلاش‌های مجدد
-            'socket_timeout': 30,  # زمان انتظار برای اتصال
-            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
-            'format_sort': ['tbr', 'res:144', 'ext:mp4:mkv:webm:m4v:mov:avi:flv:wmv', 'size'],  # اولویت فرمت‌ها
-            'format_sort_force': True,
+            'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'prefer_free_formats': True,  # ترجیح فرمت‌های رایگان
-            'ffmpeg_location': '/usr/bin/ffmpeg',  # مسیر ffmpeg
-            'postprocessor_args': [
-                '-vf', 'scale=256:144',  # کاهش رزولوشن به 256x144
-                '-b:v', '500k',  # کاهش بیت‌ریت ویدیو به 500kbps
-                '-b:a', '64k',  # کاهش بیت‌ریت صدا به 64kbps
-                '-r', '15',  # کاهش فریم‌ریت به 15fps
-                '-movflags', '+faststart'  # بهینه‌سازی برای پخش آنلاین
-            ],
+            'format_sort': ['height:240'],  # اولویت با رزولوشن 240p
+            'format_sort_force': True,
+            'merge_output_format': 'mp4',
+            'retries': 3,  # تعداد تلاش‌های مجدد
+            'socket_timeout': 30,  # زمان انتظار برای اتصال
+            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
         }
 
         # دانلود ویدیو
@@ -187,15 +144,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # غیرفعال کردن تایمر در هر صورت
         signal.alarm(0)
         
-        # پاک کردن پیام "در حال پردازش"
-        try:
-            await context.bot.delete_message(
-                chat_id=GROUP_ID,
-                message_id=processing_message.message_id
-            )
-        except Exception as e:
-            logging.error(f"خطا در حذف پیام پردازش: {str(e)}")
-        
         # پاک کردن دایرکتوری موقت و محتویات آن
         if os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
@@ -204,28 +152,26 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         gc.collect()
 
 def main():
-    # اطمینان از اجرای تنها یک نمونه
-    with SingleInstance('/tmp/telegram_bot.lock'):
-        # ایجاد برنامه
-        application = Application.builder().token(TOKEN).build()
+    # ایجاد برنامه
+    application = Application.builder().token(TOKEN).build()
 
-        # اضافه کردن هندلر پیام
-        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # اضافه کردن هندلر پیام
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-        # تنظیم webhook
-        port = int(os.environ.get('PORT', 8080))
-        webhook_url = os.environ.get('WEBHOOK_URL')
-        
-        if webhook_url:
-            application.run_webhook(
-                listen='0.0.0.0',
-                port=port,
-                url_path=TOKEN,
-                webhook_url=f"{webhook_url}/{TOKEN}"
-            )
-        else:
-            # اگر webhook_url تنظیم نشده باشد، از polling استفاده می‌کند
-            application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # تنظیم webhook
+    port = int(os.environ.get('PORT', 8080))
+    webhook_url = os.environ.get('WEBHOOK_URL')
+    
+    if webhook_url:
+        application.run_webhook(
+            listen='0.0.0.0',
+            port=port,
+            url_path=TOKEN,
+            webhook_url=f"{webhook_url}/{TOKEN}"
+        )
+    else:
+        # اگر webhook_url تنظیم نشده باشد، از polling استفاده می‌کند
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
-    main() 
+    main()
