@@ -10,6 +10,8 @@ import tempfile
 import shutil
 import time
 import signal
+import fcntl
+import sys
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -39,6 +41,32 @@ class DownloadTimeout(Exception):
 
 def timeout_handler(signum, frame):
     raise DownloadTimeout("زمان دانلود به پایان رسید")
+
+class SingleInstance:
+    """
+    کلاس برای اطمینان از اجرای تنها یک نمونه از برنامه
+    """
+    def __init__(self, lockfile):
+        self.lockfile = lockfile
+        self.fd = None
+
+    def __enter__(self):
+        self.fd = open(self.lockfile, 'w')
+        try:
+            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError:
+            logging.error("برنامه در حال اجراست. خروج...")
+            sys.exit(1)
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.fd:
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+            self.fd.close()
+            try:
+                os.unlink(self.lockfile)
+            except OSError:
+                pass
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # بررسی اینکه پیام در گروه مورد نظر است
@@ -175,26 +203,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         gc.collect()
 
 def main():
-    # ایجاد برنامه
-    application = Application.builder().token(TOKEN).build()
+    # اطمینان از اجرای تنها یک نمونه
+    with SingleInstance('/tmp/telegram_bot.lock'):
+        # ایجاد برنامه
+        application = Application.builder().token(TOKEN).build()
 
-    # اضافه کردن هندلر پیام
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        # اضافه کردن هندلر پیام
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    # تنظیم webhook
-    port = int(os.environ.get('PORT', 8080))
-    webhook_url = os.environ.get('WEBHOOK_URL')
-    
-    if webhook_url:
-        application.run_webhook(
-            listen='0.0.0.0',
-            port=port,
-            url_path=TOKEN,
-            webhook_url=f"{webhook_url}/{TOKEN}"
-        )
-    else:
-        # اگر webhook_url تنظیم نشده باشد، از polling استفاده می‌کند
-        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # تنظیم webhook
+        port = int(os.environ.get('PORT', 8080))
+        webhook_url = os.environ.get('WEBHOOK_URL')
+        
+        if webhook_url:
+            application.run_webhook(
+                listen='0.0.0.0',
+                port=port,
+                url_path=TOKEN,
+                webhook_url=f"{webhook_url}/{TOKEN}"
+            )
+        else:
+            # اگر webhook_url تنظیم نشده باشد، از polling استفاده می‌کند
+            application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == '__main__':
     main() 
