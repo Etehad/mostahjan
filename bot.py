@@ -105,30 +105,23 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # تنظیمات yt-dlp برای دانلود با هر فرمتی
         ydl_opts = {
-            'format': 'worst[ext=mp4]',  # استفاده از بدترین کیفیت mp4
+            'format': 'worst[ext=mp4/mkv/webm/m4v/mov/avi/flv/wmv]',  # پایین‌ترین کیفیت در فرمت‌های مختلف
             'outtmpl': temp_path,
             'quiet': False,  # نمایش لاگ‌ها برای عیب‌یابی
             'no_warnings': False,  # نمایش هشدارها
             'verbose': True,  # نمایش جزئیات بیشتر
-            'max_filesize': 50 * 1024 * 1024,  # 50MB به بایت
+            'max_filesize': None,  # حذف محدودیت حجم
             'merge_output_format': 'mp4',  # تبدیل نهایی به mp4
             'retries': 3,  # تعداد تلاش‌های مجدد
             'socket_timeout': 30,  # زمان انتظار برای اتصال
             'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
-            'format_sort': ['tbr', 'res:144', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها با رزولوشن پایین‌تر
+            'format_sort': ['tbr', 'res:144', 'ext:mp4:mkv:webm:m4v:mov:avi:flv:wmv', 'size'],  # اولویت فرمت‌ها
             'format_sort_force': True,
             'postprocessors': [{
                 'key': 'FFmpegVideoConvertor',
                 'preferedformat': 'mp4',
             }],
-            'format': '144p',  # انتخاب کیفیت 144p
             'prefer_free_formats': True,  # ترجیح فرمت‌های رایگان
-            'format_sort': ['res:144', 'ext:mp4:m4a:webm:mkv', 'size'],  # اولویت فرمت‌ها با رزولوشن پایین‌تر
-            'format_sort_force': True,
-            'postprocessors': [{
-                'key': 'FFmpegVideoConvertor',
-                'preferedformat': 'mp4',
-            }],
             'ffmpeg_location': '/usr/bin/ffmpeg',  # مسیر ffmpeg
             'postprocessor_args': [
                 '-vf', 'scale=256:144',  # کاهش رزولوشن به 256x144
