@@ -11,7 +11,6 @@ import shutil
 import time
 import signal
 import ffmpeg
-import asyncio
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -82,46 +81,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     temp_dir = tempfile.mkdtemp()
     temp_path = os.path.join(temp_dir, 'video.mp4')
 
-    # ارسال پیام موقت اولیه
-    progress_message = await context.bot.send_message(
-        chat_id=GROUP_ID,
-        text="در حال پردازش لینک..."
-    )
-
-    # متغیر برای ردیابی آخرین درصد گزارش‌شده
-    last_reported_percent = -10  # برای اطمینان از گزارش 0% در ابتدا
-
-    # تابع برای به‌روزرسانی پیام پیشرفت
-    def update_progress(status):
-        nonlocal last_reported_percent
-        if status['status'] == 'downloading':
-            percent_str = status.get('_percent_str', '0%').replace('%', '').strip()
-            try:
-                percent = float(percent_str)
-                if percent >= last_reported_percent + 10:  # به‌روزرسانی هر 10 درصد
-                    last_reported_percent = int(percent // 10) * 10
-                    asyncio.create_task(context.bot.edit_message_text(
-                        chat_id=GROUP_ID,
-                        message_id=progress_message.message_id,
-                        text=f"{last_reported_percent}% دانلود شده"
-                    ))
-            except ValueError:
-                pass  # در صورت خطا در تبدیل درصد، نادیده بگیر
-        elif status['status'] == 'finished':
-            asyncio.create_task(context.bot.edit_message_text(
-                chat_id=GROUP_ID,
-                message_id=progress_message.message_id,
-                text="دانلود کامل شد، در حال پردازش ویدیو..."
-            ))
-
     try:
         # تنظیم تایمر برای دانلود (3 دقیقه)
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(180)  # 3 دقیقه
 
-        # تنظیمات yt-dlp برای انتخاب فرمتی با صدا
+        # تنظیمات yt-dlp برای کمترین کیفیت
         ydl_opts = {
-            'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]',  # انتخاب بهترین ویدیو و صدا با رزولوشن تا 480p
+            'format': 'worst',  # کمترین کیفیت موجود
             'outtmpl': temp_path,
             'quiet': False,
             'no_warnings': False,
@@ -134,7 +101,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'merge_output_format': 'mp4',
             'retries': 3,
             'socket_timeout': 30,
-            'progress_hooks': [update_progress],
+            'progress_hooks': [lambda d: logging.info(f"پیشرفت دانلود: {d.get('_percent_str', '0%')}")],
             'extract_flat': True,
         }
 
@@ -148,9 +115,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 # بررسی مدت زمان ویدیو
                 duration = info.get('duration', 0)
                 if duration < 120:  # کمتر از 2 دقیقه
-                    await context.bot.edit_message_text(
+                    await context.bot.send_message(
                         chat_id=GROUP_ID,
-                        message_id=progress_message.message_id,
                         text=f"ویدیو کوتاه‌تر از 2 دقیقه است (مدت زمان: {duration} ثانیه). دانلود نمی‌شود."
                     )
                     return
@@ -185,12 +151,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # بررسی سایز فایل و ارسال ویدیو
         file_size = os.path.getsize(temp_path)
         if file_size <= MAX_FILE_SIZE:
-            # ارسال مستقیم فایل اگر کمتر یا برابر 50MB باشد
-            await context.bot.edit_message_text(
-                chat_id=GROUP_ID,
-                message_id=progress_message.message_id,
-                text="در حال ارسال ویدیو..."
-            )
+            # ارسال مستقیم فایل اگر کمتر از 50MB باشد
             with open(temp_path, 'rb') as video:
                 await context.bot.send_video(
                     chat_id=GROUP_ID,
@@ -200,11 +161,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 )
         else:
             # تقسیم ویدیو به بخش‌های کوچکتر
-            await context.bot.edit_message_text(
-                chat_id=GROUP_ID,
-                message_id=progress_message.message_id,
-                text="فایل بزرگ است، در حال تقسیم و ارسال ویدیو..."
-            )
             video_parts = split_video(temp_path, temp_dir, MAX_FILE_SIZE)
             
             # ارسال هر بخش به گروه
@@ -217,24 +173,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         supports_streaming=True
                     )
 
-        # حذف پیام پیشرفت پس از اتمام
-        await context.bot.delete_message(
-            chat_id=GROUP_ID,
-            message_id=progress_message.message_id
-        )
-
     except DownloadTimeout:
         logging.error("زمان دانلود به پایان رسید")
-        await context.bot.edit_message_text(
+        await context.bot.send_message(
             chat_id=GROUP_ID,
-            message_id=progress_message.message_id,
             text="زمان دانلود به پایان رسید. لطفاً دوباره تلاش کنید."
         )
     except Exception as e:
         logging.error(f"خطا در پردازش ویدیو: {str(e)}")
-        await context.bot.edit_message_text(
+        await context.bot.send_message(
             chat_id=GROUP_ID,
-            message_id=progress_message.message_id,
             text=f"خطا در پردازش ویدیو: {str(e)}"
         )
     finally:
