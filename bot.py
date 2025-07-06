@@ -11,6 +11,7 @@ import shutil
 import time
 import signal
 import ffmpeg
+import asyncio
 
 # تنظیمات لاگینگ
 logging.basicConfig(
@@ -91,7 +92,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     last_reported_percent = -10  # برای اطمینان از گزارش 0% در ابتدا
 
     # تابع برای به‌روزرسانی پیام پیشرفت
-    async def update_progress(status):
+    def update_progress(status):
         nonlocal last_reported_percent
         if status['status'] == 'downloading':
             percent_str = status.get('_percent_str', '0%').replace('%', '').strip()
@@ -99,28 +100,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 percent = float(percent_str)
                 if percent >= last_reported_percent + 10:  # به‌روزرسانی هر 10 درصد
                     last_reported_percent = int(percent // 10) * 10
-                    await context.bot.edit_message_text(
+                    asyncio.create_task(context.bot.edit_message_text(
                         chat_id=GROUP_ID,
                         message_id=progress_message.message_id,
                         text=f"{last_reported_percent}% دانلود شده"
-                    )
+                    ))
             except ValueError:
                 pass  # در صورت خطا در تبدیل درصد، نادیده بگیر
         elif status['status'] == 'finished':
-            await context.bot.edit_message_text(
+            asyncio.create_task(context.bot.edit_message_text(
                 chat_id=GROUP_ID,
                 message_id=progress_message.message_id,
                 text="دانلود کامل شد، در حال پردازش ویدیو..."
-            )
+            ))
 
     try:
         # تنظیم تایمر برای دانلود (3 دقیقه)
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(180)  # 3 دقیقه
 
-        # تنظیمات yt-dlp برای کمترین کیفیت
+        # تنظیمات yt-dlp برای انتخاب فرمتی با صدا
         ydl_opts = {
-            'format': 'worst',  # کمترین کیفیت موجود
+            'format': 'bestvideo[height<=480]+bestaudio/best[height<=480]',  # انتخاب بهترین ویدیو و صدا با رزولوشن تا 480p
             'outtmpl': temp_path,
             'quiet': False,
             'no_warnings': False,
@@ -133,7 +134,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'merge_output_format': 'mp4',
             'retries': 3,
             'socket_timeout': 30,
-            'progress_hooks': [update_progress],  # استفاده از تابع به‌روزرسانی پیشرفت
+            'progress_hooks': [update_progress],
             'extract_flat': True,
         }
 
